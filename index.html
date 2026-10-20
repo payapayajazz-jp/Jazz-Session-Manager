@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ジャムセッション進行管理</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- ヘッダー -->
+    <header class="bg-indigo-600 text-white p-4 shadow-md text-center">
+        <h1 class="text-xl font-bold">🎸 ジャズセッションマネージャー</h1>
+        <p class="text-xs text-indigo-200 mt-1">黒本対応・みんなで楽しくセッションしよう！</p>
+    </header>
+
+    <!-- タブナビゲーション -->
+    <nav class="flex border-b bg-white shadow-sm">
+        <button onclick="switchTab('recommend')" id="tab-recommend" class="flex-1 py-3 text-center font-bold text-indigo-600 border-b-2 border-indigo-600 text-sm">進行・リコメンド</button>
+        <button onclick="switchTab('participants')" id="tab-participants" class="flex-1 py-3 text-center font-medium text-slate-500 text-sm">参加者 (<span id="p-count">0</span>)</button>
+        <button onclick="switchTab('songs')" id="tab-songs" class="flex-1 py-3 text-center font-medium text-slate-500 text-sm">曲リスト (<span id="s-count">0</span>)</button>
+    </nav>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-md w-full mx-auto p-4 mb-16">
+
+        <!-- ① リコメンド・進行管理タブ -->
+        <section id="section-recommend" class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h2 class="font-bold text-indigo-700 mb-2 flex items-center">✨ 次のセッションを自動編成</h2>
+                <p class="text-xs text-slate-500 mb-4">演奏回数と共演履歴を考慮し、未共演ペアを優先編成します。</p>
+                <button onclick="generateRecommendation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition active:scale-95">
+                    🎲 メンバー＆曲をリコメンドする
+                </button>
+            </div>
+
+            <!-- リコメンド結果表示エリア -->
+            <div id="recommend-result" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
+                <h3 class="font-bold text-amber-800 text-sm border-b border-amber-200 pb-1">🎯 おすすめの編成（プルダウンで変更可）</h3>
+                <div id="recommended-members" class="space-y-2 text-sm">
+                    <!-- JSで動的に挿入 -->
+                </div>
+                <div class="bg-white p-3 rounded-lg border border-amber-200 mt-2">
+                    <span class="text-xs text-slate-400 block mb-1">おすすめの曲</span>
+                    <select id="recommended-song-select" class="w-full border border-amber-300 rounded p-1.5 text-sm bg-white font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400">
+                        <!-- JSで動的に挿入 -->
+                    </select>
+                </div>
+                <button onclick="commitSession()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg shadow text-sm transition active:scale-95">
+                    ✅ この編成で演奏を記録する（回数+1）
+                </button>
+            </div>
+
+            <!-- 最近の履歴 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-slate-700 text-sm">📜 本日の演奏履歴</h3>
+                    <button onclick="clearHistory()" class="text-xs text-rose-500 underline">🗑️ 履歴クリア</button>
+                </div>
+                <div id="history-list" class="space-y-2 text-xs text-slate-600 max-h-48 overflow-y-auto">
+                    <p class="text-slate-400">まだ履歴はありません</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ② 参加者管理タブ -->
+        <section id="section-participants" class="hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h2 class="font-bold text-indigo-700 mb-3 text-sm">➕ 参加者の追加</h2>
+                <form onsubmit="addParticipant(event)" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">名前（ニックネーム可）</label>
+                        <input type="text" id="p-name" required placeholder="例: 太郎" class="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">パート</label>
+                        <select id="p-part" class="w-full border rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <optgroup label="リズム隊（優先アサイン）">
+                                <option value="Dr">ドラム (Dr)</option>
+                                <option value="Ba">ベース (Ba)</option>
+                                <option value="Key">ピアノ/キーボード (Key)</option>
+                            </optgroup>
+                            <optgroup label="フロント・その他">
+                                <option value="Gt">ギター (Gt)</option>
+                                <option value="Vo">ボーカル (Vo)</option>
+                                <option value="Other">その他 (Other)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg text-sm shadow">追加する</button>
+                </form>
+            </div>
+
+            <!-- 参加者一覧 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-bold text-slate-700 text-sm">👥 参加者一覧（演奏回数）</h2>
+                    <div class="space-x-2">
+                        <button onclick="resetParticipantCounts()" class="text-xs text-indigo-600 underline">🔄 回数リセット</button>
+                        <button onclick="clearAllParticipants()" class="text-xs text-rose-500 underline">⚠️ 全削除</button>
+                    </div>
+                </div>
+                <div id="participants-list" class="divide-y text-sm">
+                    <!-- JSで挿入 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ③ 曲リスト管理タブ -->
+        <section id="section-songs" class="hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h2 class="font-bold text-indigo-700 mb-3 text-sm">➕ 曲の追加</h2>
+                <form onsubmit="addSong(event)" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">曲名</label>
+                        <input type="text" id="s-title" required placeholder="例: All of Me" class="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg text-sm shadow">曲を追加する</button>
+                </form>
+            </div>
+
+            <!-- 曲一覧 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-bold text-slate-700 text-sm">🎵 曲一覧（演奏状況）</h2>
+                    <button onclick="resetAllSongsStatus()" class="text-xs text-indigo-600 underline">全曲未演奏に戻す</button>
+                </div>
+                <div id="songs-list" class="divide-y text-sm max-h-64 overflow-y-auto">
+                    <!-- JSで挿入 -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- JavaScriptロジック -->
+    <script>
+        let appData = {
+            participants: [],
+            songs: [],
+            history: []
+        };
+
+        let currentRecommendation = null;
+
+        const defaultBlackBookSongs = [
+            "Alice in Wonderland", "All Blues", "All of Me", "All the Things You Are", 
+            "Au Privave", "Autumn Leaves", "Bag's Groove", "Beautiful Love", "Billie's Bounce", 
+            "Black Nike", "Black Orpheus", "Blue Bossa", "Blue Monk", "Body and Soul", 
+            "But Not for Me", "Bye Bye Blackbird", "C Jam Blues", "Candy", "Cantaloupe Island", 
+            "Cherokee", "Cute", "The Days of Wine and Roses", "Dear Old Stockholm", "Donna Lee", 
+            "Feel Like Makin' Love", "Fly Me to the Moon", "Four", "Freddie the Freeloader", 
+            "Georgia on my Mind", "Giant Steps", "Girl from Ipanema", "How High the Moon", 
+            "How Insensitive", "I'll Close my Eyes", "I'll Remember April", "Impressions", 
+            "In a Mellow Tone", "In a Sentimental Mood", "It Could Happen to You", 
+            "It's Only a Paper Moon", "Just Friends", "Like Someone in Love", "Lullaby of Birdland", 
+            "Mack the Knife", "Maiden Voyage", "Milestones", "Moanin'", "Moment's Notice", 
+            "Mr.P.C.", "My Favorite Things", "My Foolish Heart", "My Funny Valentine", 
+            "My Little Suede Shoes", "My One and Only Love", "A Night in Tunisia", "Now's the Time", 
+            "Oleo", "On Green Dolphin Street", "On the Sunny Side of the Street", "One Note Samba", 
+            "Over the Rainbow", "Satin Doll", "Secret Love", "The Shadow of Your Smile", 
+            "So What", "Softly, as in a Morning Sunrise", "Someday my Prince will Come", 
+            "St. Thomas", "Stella by Starlight", "Straight, No Chaser", "Summertime", 
+            "Take the \"A\" Train", "Tenor Madness", "There is No Greater Love", 
+            "There will Never be Another You", "Watermelon Man", "Wave", "When You Upon a Star", 
+            "You'd be So Nice to Come Home to"
+        ];
+
+        function loadData() {
+            const saved = localStorage.getItem('jam_session_app_data_v6');
+            if (saved) {
+                appData = JSON.parse(saved);
+            } else {
+                appData.participants = [
+                    { id: 1, name: "ドラム太郎", part: "Dr", count: 0 },
+                    { id: 2, name: "ベース次郎", part: "Ba", count: 0 },
+                    { id: 3, name: "ピアノ花子", part: "Key", count: 0 },
+                    { id: 4, name: "ギター三郎", part: "Gt", count: 0 }
+                ];
+                appData.songs = defaultBlackBookSongs.map((title, index) => ({
+                    id: Date.now() + index,
+                    title: title,
+                    played: false
+                }));
+            }
+            updateUI();
+        }
+
+        function saveData() {
+            localStorage.setItem('jam_session_app_data_v6', JSON.stringify(appData));
+            updateUI();
+        }
+
+        function switchTab(tabName) {
+            ['recommend', 'participants', 'songs'].forEach(t => {
+                document.getElementById(`section-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600', 'font-bold');
+                document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'font-medium');
+            });
+            document.getElementById(`section-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600', 'font-bold');
+            document.getElementById(`tab-${tabName}`).classList.remove('text-slate-500', 'font-medium');
+        }
+
+        function addParticipant(e) {
+            e.preventDefault();
+            const name = document.getElementById('p-name').value;
+            const part = document.getElementById('p-part').value;
+            
+            appData.participants.push({
+                id: Date.now(),
+                name: name,
+                part: part,
+                count: 0
+            });
+            document.getElementById('p-name').value = '';
+            saveData();
+        }
+
+        function deleteParticipant(id) {
+            appData.participants = appData.participants.filter(p => p.id !== id);
+            saveData();
+        }
+
+        function updateCount(id, delta) {
+            const p = appData.participants.find(p => p.id === id);
+            if (p) {
+                p.count = Math.max(0, p.count + delta);
+                saveData();
+            }
+        }
+
+        function resetParticipantCounts() {
+            if (confirm("全員の演奏回数を 0 回にリセットしますか？")) {
+                appData.participants.forEach(p => p.count = 0);
+                saveData();
+            }
+        }
+
+        function clearAllParticipants() {
+            if (confirm("参加者リストを全員削除しますか？")) {
+                appData.participants = [];
+                saveData();
+            }
+        }
+
+        function clearHistory() {
+            if (confirm("本日の演奏履歴を消去しますか？")) {
+                appData.history = [];
+                saveData();
+            }
+        }
+
+        function addSong(e) {
+            e.preventDefault();
+            const title = document.getElementById('s-title').value;
+            appData.songs.push({
+                id: Date.now(),
+                title: title,
+                played: false
+            });
+            document.getElementById('s-title').value = '';
+            saveData();
+        }
+
+        function deleteSong(id) {
+            appData.songs = appData.songs.filter(s => s.id !== id);
+            saveData();
+        }
+
+        function toggleSongPlayed(id) {
+            const s = appData.songs.find(s => s.id === id);
+            if (s) {
+                s.played = !s.played;
+                saveData();
+            }
+        }
+
+        function resetAllSongsStatus() {
+            if (confirm("すべての曲を未演奏状態に戻しますか？")) {
+                appData.songs.forEach(s => s.played = false);
+                saveData();
+            }
+        }
+
+        // 過去の履歴から2人間の共演回数を算出する関数
+        function getCoPlayCount(id1, id2) {
+            let count = 0;
+            const p1 = appData.participants.find(p => p.id === id1);
+            const p2 = appData.participants.find(p => p.id === id2);
+            if (!p1 || !p2) return 0;
+
+            appData.history.forEach(h => {
+                if (h.memberIds && Array.isArray(h.memberIds)) {
+                    if (h.memberIds.includes(id1) && h.memberIds.includes(id2)) {
+                        count++;
+                    }
+                } else if (h.members) {
+                    if (h.members.includes(p1.name) && h.members.includes(p2.name)) {
+                        count++;
+                    }
+                }
+            });
+            return count;
+        }
+
+        // 演奏回数＋共演履歴を考慮したリコメンド生成アルゴリズム
+        function generateRecommendation() {
+            if (appData.participants.length === 0) {
+                alert("まずは参加者を追加してください！");
+                switchTab('participants');
+                return;
+            }
+
+            const rhythmParts = ['Dr', 'Ba', 'Key'];
+            const allParts = [...new Set(appData.participants.map(p => p.part))];
+
+            allParts.sort((a, b) => {
+                const aIsRhythm = rhythmParts.includes(a);
+                const bIsRhythm = rhythmParts.includes(b);
+                if (aIsRhythm && !bIsRhythm) return -1;
+                if (!aIsRhythm && bIsRhythm) return 1;
+                return 0;
+            });
+
+            let candidatePools = {};
+            allParts.forEach(part => {
+                const candidates = appData.participants.filter(p => p.part === part);
+                if (candidates.length > 0) {
+                    candidates.sort((a, b) => a.count - b.count);
+                    const minCount = candidates[0].count;
+                    const topCandidates = candidates.filter(p => p.count <= minCount + 1);
+                    candidatePools[part] = topCandidates;
+                }
+            });
+
+            let bestCombination = [];
+            let minTotalCoPlayScore = Infinity;
+
+            function searchBestCombination(partIndex, currentMembers) {
+                if (partIndex >= allParts.length) {
+                    let currentScore = 0;
+                    for (let i = 0; i < currentMembers.length; i++) {
+                        for (let j = i + 1; j < currentMembers.length; j++) {
+                            currentScore += getCoPlayCount(currentMembers[i].id, currentMembers[j].id);
+                        }
+                    }
+
+                    const totalPlayCount = currentMembers.reduce((sum, m) => sum + m.count, 0);
+                    const totalScore = (currentScore * 10) + totalPlayCount;
+
+                    if (totalScore < minTotalCoPlayScore) {
+                        minTotalCoPlayScore = totalScore;
+                        bestCombination = [...currentMembers];
+                    }
+                    return;
+                }
+
+                const part = allParts[partIndex];
+                const pool = candidatePools[part] || [];
+
+                if (pool.length === 0) {
+                    searchBestCombination(partIndex + 1, currentMembers);
+                } else {
+                    for (let candidate of pool) {
+                        searchBestCombination(partIndex + 1, [...currentMembers, candidate]);
+                    }
+                }
+            }
+
+            searchBestCombination(0, []);
+
+            const selectedMemberSlots = bestCombination.map(m => ({
+                part: m.part,
+                chosenId: m.id
+            }));
+
+            const unplayedSongs = appData.songs.filter(s => !s.played);
+            let chosenSong;
+            if (unplayedSongs.length > 0) {
+                chosenSong = unplayedSongs[Math.floor(Math.random() * unplayedSongs.length)];
+            } else if (appData.songs.length > 0) {
+                chosenSong = appData.songs[Math.floor(Math.random() * appData.songs.length)];
+            } else {
+                chosenSong = { id: null, title: "🎵 自由曲（現場のリクエスト曲）" };
+            }
+
+            currentRecommendation = {
+                memberSlots: selectedMemberSlots,
+                song: chosenSong
+            };
+
+            renderRecommendationResult();
+        }
+
+        function renderRecommendationResult() {
+            if (!currentRecommendation) return;
+
+            const memberContainer = document.getElementById('recommended-members');
+            const rhythmParts = ['Dr', 'Ba', 'Key'];
+
+            memberContainer.innerHTML = currentRecommendation.memberSlots.map(slot => {
+                const isRhythm = rhythmParts.includes(slot.part);
+                const samePartParticipants = appData.participants.filter(p => p.part === slot.part);
+
+                let optionsHTML = samePartParticipants.map(p => {
+                    const isSelected = p.id === slot.chosenId ? 'selected' : '';
+                    return `<option value="${p.id}" ${isSelected}>${p.name} (${p.count}回)</option>`;
+                }).join('');
+
+                optionsHTML += `<option value="none" ${slot.chosenId === 'none' ? 'selected' : ''}>-- なし（このパートなし）--</option>`;
+
+                return `
+                    <div class="bg-white p-2 rounded-lg border border-amber-200 shadow-sm flex flex-col space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="font-bold text-slate-700 flex items-center">
+                                ${slot.part} 
+                                ${isRhythm ? '<span class="text-[10px] bg-indigo-600 text-white px-1 rounded ml-1">リズム隊</span>' : ''}
+                            </span>
+                        </div>
+                        <select onchange="updateRecommendedMember('${slot.part}', this.value)" class="w-full border rounded p-1 text-sm font-bold text-slate-800 bg-amber-50/50 outline-none focus:ring-1 focus:ring-amber-500">
+                            ${optionsHTML}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+
+            const songSelect = document.getElementById('recommended-song-select');
+            let songOptionsHTML = appData.songs.map(s => {
+                const isSelected = (currentRecommendation.song && currentRecommendation.song.id === s.id) ? 'selected' : '';
+                const statusLabel = s.played ? '[演奏済]' : '[未演奏]';
+                return `<option value="${s.id}" ${isSelected}>${statusLabel} ${s.title}</option>`;
+            }).join('');
+
+            songOptionsHTML += `<option value="custom" ${(!currentRecommendation.song || currentRecommendation.song.id === null) ? 'selected' : ''}>🎵 自由曲（現場のリクエスト曲）</option>`;
+            songSelect.innerHTML = songOptionsHTML;
+
+            document.getElementById('recommend-result').classList.remove('hidden');
+        }
+
+        function updateRecommendedMember(part, selectedId) {
+            if (!currentRecommendation) return;
+            const slot = currentRecommendation.memberSlots.find(s => s.part === part);
+            if (slot) {
+                slot.chosenId = selectedId === 'none' ? 'none' : Number(selectedId);
+            }
+        }
+
+        function commitSession() {
+            if (!currentRecommendation) return;
+
+            let finalMembers = [];
+            let finalMemberIds = [];
+
+            currentRecommendation.memberSlots.forEach(slot => {
+                if (slot.chosenId !== 'none') {
+                    const target = appData.participants.find(p => p.id === slot.chosenId);
+                    if (target) {
+                        target.count++;
+                        finalMembers.push(target);
+                        finalMemberIds.push(target.id);
+                    }
+                }
+            });
+
+            const songSelect = document.getElementById('recommended-song-select');
+            const selectedVal = songSelect.value;
+            let finalSongTitle = "";
+
+            if (selectedVal === "custom") {
+                finalSongTitle = "🎵 自由曲（現場のリクエスト曲）";
+            } else {
+                const targetSong = appData.songs.find(s => s.id == selectedVal);
+                if (targetSong) {
+                    targetSong.played = true;
+                    finalSongTitle = targetSong.title;
+                }
+            }
+
+            const memberNames = finalMembers.map(m => `${m.name}(${m.part})`).join(', ');
+            appData.history.unshift({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                song: finalSongTitle,
+                members: memberNames,
+                memberIds: finalMemberIds
+            });
+
+            currentRecommendation = null;
+            document.getElementById('recommend-result').classList.add('hidden');
+            saveData();
+            alert("演奏を記録しました！次のセットを編成できます。");
+        }
+
+        function updateUI() {
+            document.getElementById('p-count').textContent = appData.participants.length;
+            document.getElementById('s-count').textContent = appData.songs.length;
+
+            const pList = document.getElementById('participants-list');
+            if (appData.participants.length === 0) {
+                pList.innerHTML = `<p class="text-slate-400 py-2 text-center">参加者が登録されていません</p>`;
+            } else {
+                pList.innerHTML = appData.participants.map(p => `
+                    <div class="py-2 flex justify-between items-center">
+                        <div>
+                            <span class="font-bold">${p.name}</span>
+                            <span class="text-xs text-slate-500 ml-1">(${p.part})</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-md text-xs">${p.count}回</span>
+                            <button onclick="updateCount(${p.id}, 1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">+</button>
+                            <button onclick="updateCount(${p.id}, -1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">-</button>
+                            <button onclick="deleteParticipant(${p.id})" class="text-rose-400 hover:text-rose-600 ml-1">×</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const sList = document.getElementById('songs-list');
+            if (appData.songs.length === 0) {
+                sList.innerHTML = `<p class="text-slate-400 py-2 text-center">曲が登録されていません</p>`;
+            } else {
+                sList.innerHTML = appData.songs.map(s => `
+                    <div class="py-2 flex justify-between items-center">
+                        <span class="${s.played ? 'line-through text-slate-400' : 'font-medium text-slate-700'} text-xs">${s.title}</span>
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <button onclick="toggleSongPlayed(${s.id})" class="px-2 py-1 rounded text-[11px] font-medium ${s.played ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-700'}">
+                                ${s.played ? '演奏済' : '未演奏'}
+                            </button>
+                            <button onclick="deleteSong(${s.id})" class="text-rose-400 hover:text-rose-600">×</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const hList = document.getElementById('history-list');
+            if (appData.history.length === 0) {
+                hList.innerHTML = `<p class="text-slate-400 text-center">まだ履歴はありません</p>`;
+            } else {
+                hList.innerHTML = appData.history.map(h => `
+                    <div class="border-b pb-1 last:border-0">
+                        <div class="flex justify-between font-bold text-slate-700">
+                            <span>🎵 ${h.song}</span>
+                            <span class="text-slate-400 text-[10px]">${h.time}</span>
+                        </div>
+                        <div class="text-slate-500 text-[11px]">メンバ: ${h.members}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
