@@ -29,7 +29,7 @@
         <section id="section-recommend" class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <h2 class="font-bold text-indigo-700 mb-2 flex items-center">✨ 次のセッションを自動編成</h2>
-                <p class="text-xs text-slate-500 mb-4">おすすめの編成と未演奏曲から曲を提案します。</p>
+                <p class="text-xs text-slate-500 mb-4">リズム隊各1名＋フロント(0〜2名)で編成します。</p>
                 <button onclick="generateRecommendation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition active:scale-95">
                     🎲 メンバー＆曲をリコメンドする
                 </button>
@@ -83,14 +83,14 @@
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">パート区分</label>
                         <select id="p-part" class="w-full border rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
-                            <optgroup label="リズム隊">
+                            <optgroup label="リズム隊（各1名選定）">
                                 <option value="Key">ピアノ/キーボード (Key)</option>
                                 <option value="Ba">ベース (Ba)</option>
                                 <option value="Dr">ドラム (Dr)</option>
                             </optgroup>
-                            <optgroup label="フロント・その他（ギターは両対応）">
+                            <optgroup label="フロント・その他（ギターはコード楽器/リズム隊としても対応）">
                                 <option value="Gt">ギター (Gt)</option>
-                                <option value="Front">管楽器フロント (Front: サックス/Tp等)</option>
+                                <option value="Front">フロント楽器(サックス/トランペット等)</option>
                                 <option value="Vo">ボーカル (Vo)</option>
                                 <option value="Other">その他 (Other)</option>
                             </optgroup>
@@ -152,7 +152,6 @@
 
         let currentRecommendation = null;
 
-        // 指定の並び順定義（ピアノ → ベース → ドラム → ギター → フロント → ボーカル → その他）
         const partOrder = ['Key', 'Ba', 'Dr', 'Gt', 'Front', 'Vo', 'Other'];
 
         const defaultBlackBookSongs = [
@@ -304,6 +303,17 @@
             }
         }
 
+        // リズム隊などの各パートから1名選出（演奏回数最少を優先）
+        function pickOneForPart(partName, activeList) {
+            let candidates = activeList.filter(p => p.part === partName);
+            if (candidates.length === 0) return null;
+            
+            candidates.sort((a, b) => a.count - b.count);
+            const minCount = candidates[0].count;
+            const topPool = candidates.filter(p => p.count === minCount);
+            return topPool[Math.floor(Math.random() * topPool.length)];
+        }
+
         function generateRecommendation() {
             const activeParticipants = appData.participants.filter(p => p.active);
             if (activeParticipants.length === 0) {
@@ -312,43 +322,35 @@
                 return;
             }
 
-            const baCandidates = activeParticipants.filter(p => p.part === 'Ba');
-            const drCandidates = activeParticipants.filter(p => p.part === 'Dr');
+            let selectedMembers = [];
 
-            if (baCandidates.length === 0 || drCandidates.length === 0) {
-                alert("最低限「ベース(Ba)」と「ドラム(Dr)」が各1名以上参加中に設定されている必要があります！");
-                switchTab('participants');
-                return;
-            }
+            // ベース(Ba)、ドラム(Dr) は確定で各1名選出
+            const baChosen = pickOneForPart('Ba', activeParticipants);
+            const drChosen = pickOneForPart('Dr', activeParticipants);
 
-            // ベース・ドラムの選出
-            baCandidates.sort((a, b) => a.count - b.count);
-            const baChosen = baCandidates.filter(p => p.count === baCandidates[0].count)[Math.floor(Math.random() * baCandidates.filter(p => p.count === baCandidates[0].count).length)];
+            if (baChosen) selectedMembers.push(baChosen);
+            if (drChosen) selectedMembers.push(drChosen);
 
-            drCandidates.sort((a, b) => a.count - b.count);
-            const drChosen = drCandidates.filter(p => p.count === drCandidates[0].count)[Math.floor(Math.random() * drCandidates.filter(p => p.count === drCandidates[0].count).length)];
-
-            // コード楽器枠（ピアノ優先、いなければギター）
+            // ピアノ(Key)とギター(Gt)の選定ロジック
             const keyCandidates = activeParticipants.filter(p => p.part === 'Key');
             const gtCandidates = activeParticipants.filter(p => p.part === 'Gt');
-            
-            let chordCandidates = [...keyCandidates];
-            if (chordCandidates.length === 0) {
-                chordCandidates = [...gtCandidates];
-            }
 
             let chordChosen = null;
-            if (chordCandidates.length > 0) {
-                chordCandidates.sort((a, b) => a.count - b.count);
-                chordChosen = chordCandidates.filter(p => p.count === chordCandidates[0].count)[Math.floor(Math.random() * chordCandidates.filter(p => p.count === chordCandidates[0].count).length)];
+
+            // ピアノがいても25%の確率で「ピアノお休み」とし、ギターをコード枠へまわす
+            const pianoTakesRest = (keyCandidates.length > 0 && gtCandidates.length > 0) ? (Math.random() < 0.25) : false;
+
+            if (keyCandidates.length > 0 && !pianoTakesRest) {
+                chordChosen = pickOneForPart('Key', activeParticipants);
+            } else if (gtCandidates.length > 0) {
+                chordChosen = pickOneForPart('Gt', activeParticipants);
             }
 
-            let selectedMembers = [];
-            if (chordChosen) selectedMembers.push(chordChosen);
-            selectedMembers.push(baChosen);
-            selectedMembers.push(drChosen);
+            if (chordChosen) {
+                selectedMembers.push(chordChosen);
+            }
 
-            // フロント/その他枠（0〜2名ランダム選出）
+            // フロント・その他枠（残りのメンバーから0〜2名選出）
             let remainingCandidates = activeParticipants.filter(p => !selectedMembers.includes(p));
             const numFrontToPick = Math.min(remainingCandidates.length, Math.floor(Math.random() * 3));
             
