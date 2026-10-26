@@ -29,7 +29,7 @@
         <section id="section-recommend" class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <h2 class="font-bold text-indigo-700 mb-2 flex items-center">✨ 次のセッションを自動編成</h2>
-                <p class="text-xs text-slate-500 mb-4">最適な組み合わせと未演奏曲を提案します。</p>
+                <p class="text-xs text-slate-500 mb-4">おすすめの編成と未演奏曲から曲を提案します。</p>
                 <button onclick="generateRecommendation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition active:scale-95">
                     🎲 メンバー＆曲をリコメンドする
                 </button>
@@ -84,9 +84,9 @@
                         <label class="block text-xs font-medium text-slate-600 mb-1">パート区分</label>
                         <select id="p-part" class="w-full border rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                             <optgroup label="リズム隊">
-                                <option value="Dr">ドラム (Dr)</option>
-                                <option value="Ba">ベース (Ba)</option>
                                 <option value="Key">ピアノ/キーボード (Key)</option>
+                                <option value="Ba">ベース (Ba)</option>
+                                <option value="Dr">ドラム (Dr)</option>
                             </optgroup>
                             <optgroup label="フロント・その他（ギターは両対応）">
                                 <option value="Gt">ギター (Gt)</option>
@@ -152,6 +152,9 @@
 
         let currentRecommendation = null;
 
+        // 指定の並び順定義（ピアノ → ベース → ドラム → ギター → フロント → ボーカル → その他）
+        const partOrder = ['Key', 'Ba', 'Dr', 'Gt', 'Front', 'Vo', 'Other'];
+
         const defaultBlackBookSongs = [
             "Alice in Wonderland", "All Blues", "All of Me", "All the Things You Are", 
             "Au Privave", "Autumn Leaves", "Bag's Groove", "Beautiful Love", "Billie's Bounce", 
@@ -181,9 +184,9 @@
                 appData = JSON.parse(saved);
             } else {
                 appData.participants = [
-                    { id: 1, name: "ドラム太郎", part: "Dr", count: 0, active: true },
+                    { id: 1, name: "ピアノ花子", part: "Key", count: 0, active: true },
                     { id: 2, name: "ベース次郎", part: "Ba", count: 0, active: true },
-                    { id: 3, name: "ピアノ花子", part: "Key", count: 0, active: true },
+                    { id: 3, name: "ドラム太郎", part: "Dr", count: 0, active: true },
                     { id: 4, name: "ギター三郎", part: "Gt", count: 0, active: true }
                 ];
                 appData.songs = defaultBlackBookSongs.map((title, index) => ({
@@ -301,26 +304,6 @@
             }
         }
 
-        function getCoPlayCount(id1, id2) {
-            let count = 0;
-            const p1 = appData.participants.find(p => p.id === id1);
-            const p2 = appData.participants.find(p => p.id === id2);
-            if (!p1 || !p2) return 0;
-
-            appData.history.forEach(h => {
-                if (h.memberIds && Array.isArray(h.memberIds)) {
-                    if (h.memberIds.includes(id1) && h.memberIds.includes(id2)) {
-                        count++;
-                    }
-                } else if (h.members) {
-                    if (h.members.includes(p1.name) && h.members.includes(p2.name)) {
-                        count++;
-                    }
-                }
-            });
-            return count;
-        }
-
         function generateRecommendation() {
             const activeParticipants = appData.participants.filter(p => p.active);
             if (activeParticipants.length === 0) {
@@ -329,23 +312,23 @@
                 return;
             }
 
-            const drCandidates = activeParticipants.filter(p => p.part === 'Dr');
             const baCandidates = activeParticipants.filter(p => p.part === 'Ba');
+            const drCandidates = activeParticipants.filter(p => p.part === 'Dr');
 
-            if (drCandidates.length === 0 || baCandidates.length === 0) {
-                alert("最低限「ドラム(Dr)」と「ベース(Ba)」が各1名以上参加中に設定されている必要があります！");
+            if (baCandidates.length === 0 || drCandidates.length === 0) {
+                alert("最低限「ベース(Ba)」と「ドラム(Dr)」が各1名以上参加中に設定されている必要があります！");
                 switchTab('participants');
                 return;
             }
 
-            drCandidates.sort((a, b) => a.count - b.count);
-            const drChosen = drCandidates.filter(p => p.count === drCandidates[0].count)[Math.floor(Math.random() * drCandidates.filter(p => p.count === drCandidates[0].count).length)];
-
+            // ベース・ドラムの選出
             baCandidates.sort((a, b) => a.count - b.count);
             const baChosen = baCandidates.filter(p => p.count === baCandidates[0].count)[Math.floor(Math.random() * baCandidates.filter(p => p.count === baCandidates[0].count).length)];
 
-            let selectedMembers = [drChosen, baChosen];
+            drCandidates.sort((a, b) => a.count - b.count);
+            const drChosen = drCandidates.filter(p => p.count === drCandidates[0].count)[Math.floor(Math.random() * drCandidates.filter(p => p.count === drCandidates[0].count).length)];
 
+            // コード楽器枠（ピアノ優先、いなければギター）
             const keyCandidates = activeParticipants.filter(p => p.part === 'Key');
             const gtCandidates = activeParticipants.filter(p => p.part === 'Gt');
             
@@ -358,9 +341,14 @@
             if (chordCandidates.length > 0) {
                 chordCandidates.sort((a, b) => a.count - b.count);
                 chordChosen = chordCandidates.filter(p => p.count === chordCandidates[0].count)[Math.floor(Math.random() * chordCandidates.filter(p => p.count === chordCandidates[0].count).length)];
-                selectedMembers.push(chordChosen);
             }
 
+            let selectedMembers = [];
+            if (chordChosen) selectedMembers.push(chordChosen);
+            selectedMembers.push(baChosen);
+            selectedMembers.push(drChosen);
+
+            // フロント/その他枠（0〜2名ランダム選出）
             let remainingCandidates = activeParticipants.filter(p => !selectedMembers.includes(p));
             const numFrontToPick = Math.min(remainingCandidates.length, Math.floor(Math.random() * 3));
             
@@ -374,6 +362,11 @@
                 selectedMembers.push(chosen);
                 remainingCandidates = remainingCandidates.filter(p => p.id !== chosen.id);
             }
+
+            // 指定順（Key → Ba → Dr → Gt → Front → Vo → Other）でソート
+            selectedMembers.sort((a, b) => {
+                return partOrder.indexOf(a.part) - partOrder.indexOf(b.part);
+            });
 
             const memberSlots = selectedMembers.map(m => ({
                 part: m.part,
@@ -402,7 +395,6 @@
             if (!currentRecommendation) return;
 
             const memberContainer = document.getElementById('recommended-members');
-            const allPossibleParts = ['Dr', 'Ba', 'Key', 'Gt', 'Front', 'Vo', 'Other'];
 
             memberContainer.innerHTML = currentRecommendation.memberSlots.map((slot, index) => {
                 const allPartParticipants = appData.participants.filter(p => p.part === slot.part);
@@ -414,7 +406,7 @@
 
                 optionsHTML += `<option value="none" ${slot.chosenId === 'none' ? 'selected' : ''}>-- なし（このパートなし）--</option>`;
 
-                let partOptionsHTML = allPossibleParts.map(pt => {
+                let partOptionsHTML = partOrder.map(pt => {
                     const isSel = pt === slot.part ? 'selected' : '';
                     return `<option value="${pt}" ${isSel}>${pt}</option>`;
                 }).join('');
